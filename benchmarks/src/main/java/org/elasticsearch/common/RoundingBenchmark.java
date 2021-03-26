@@ -100,17 +100,17 @@ public class RoundingBenchmark {
 
     @Benchmark
     public void round(Blackhole bh) {
-        Rounding.Prepared rounder = rounderBuilder.get();
+        Rounding.Prepared rounders = rounderBuilder.get();
         for (int i = 0; i < dates.length; i++) {
-            bh.consume(rounder.round(dates[i]));
+            bh.consume(rounders.round(dates[i]));
         }
     }
 
     @Benchmark
     public void nextRoundingValue(Blackhole bh) {
-        Rounding.Prepared rounder = rounderBuilder.get();
+        Rounding.Prepared nextRounder = rounderBuilder.get();
         for (int i = 0; i < dates.length; i++) {
-            bh.consume(rounder.nextRoundingValue(dates[i]));
+            bh.consume(nextRounder.nextRoundingValue(dates[i]));
         }
     }
 }

@@ -132,14 +132,14 @@ public class BwcVersions {
 
         assertNoOlderThanTwoMajors();
 
-        Map<Version, UnreleasedVersionInfo> unreleased = new HashMap<>();
+        Map<Version, UnreleasedVersionInfo> notReleased = new HashMap<>();
         for (Version unreleasedVersion : getUnreleased()) {
-            unreleased.put(
+            notReleased.put(
                 unreleasedVersion,
                 new UnreleasedVersionInfo(unreleasedVersion, getBranchFor(unreleasedVersion), getGradleProjectPathFor(unreleasedVersion))
             );
         }
-        this.unreleased = Collections.unmodifiableMap(unreleased);
+        this.unreleased = Collections.unmodifiableMap(notReleased);
     }
 
     private void assertNoOlderThanTwoMajors() {
@@ -234,18 +234,18 @@ public class BwcVersions {
     }
 
     public List<Version> getUnreleased() {
-        List<Version> unreleased = new ArrayList<>();
+        List<Version> notReleased = new ArrayList<>();
         // The current version is being worked, is always unreleased
-        unreleased.add(currentVersion);
+        notReleased.add(currentVersion);
 
         // the tip of the previous major is unreleased for sure, be it a minor or a bugfix
         final Version latestOfPreviousMajor = getLatestVersionByKey(this.groupByMajor, currentVersion.getMajor() - 1);
-        unreleased.add(latestOfPreviousMajor);
+        notReleased.add(latestOfPreviousMajor);
         if (latestOfPreviousMajor.getRevision() == 0) {
             // if the previous major is a x.y.0 release, then the tip of the minor before that (y-1) is also unreleased
             final Version previousMinor = getLatestInMinor(latestOfPreviousMajor.getMajor(), latestOfPreviousMajor.getMinor() - 1);
             if (previousMinor != null) {
-                unreleased.add(previousMinor);
+                notReleased.add(previousMinor);
             }
         }
 
@@ -253,21 +253,21 @@ public class BwcVersions {
         int greatestMinor = groupByMinor.keySet().stream().max(Integer::compareTo).orElse(0);
 
         // the last bugfix for this minor series is always unreleased
-        unreleased.add(getLatestVersionByKey(groupByMinor, greatestMinor));
+        notReleased.add(getLatestVersionByKey(groupByMinor, greatestMinor));
 
         if (groupByMinor.get(greatestMinor).size() == 1) {
             // we found an unreleased minor
-            unreleased.add(getLatestVersionByKey(groupByMinor, greatestMinor - 1));
+            notReleased.add(getLatestVersionByKey(groupByMinor, greatestMinor - 1));
             if (groupByMinor.getOrDefault(greatestMinor - 1, emptyList()).size() == 1) {
                 // we found that the previous minor is staged but not yet released
                 // in this case, the minor before that has a bugfix, should there be such a minor
                 if (greatestMinor >= 2) {
-                    unreleased.add(getLatestVersionByKey(groupByMinor, greatestMinor - 2));
+                    notReleased.add(getLatestVersionByKey(groupByMinor, greatestMinor - 2));
                 }
             }
         }
 
-        return unmodifiableList(unreleased.stream().sorted().distinct().collect(Collectors.toList()));
+        return unmodifiableList(notReleased.stream().sorted().distinct().collect(Collectors.toList()));
     }
 
     private Version getLatestInMinor(int major, int minor) {
@@ -320,11 +320,11 @@ public class BwcVersions {
     }
 
     private List<Version> getReleased() {
-        List<Version> unreleased = getUnreleased();
+        List<Version> notReleased = getUnreleased();
         return groupByMajor.values()
             .stream()
             .flatMap(Collection::stream)
-            .filter(each -> unreleased.contains(each) == false)
+            .filter(each -> notReleased.contains(each) == false)
             .collect(Collectors.toList());
     }
 
