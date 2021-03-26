@@ -161,19 +161,19 @@ public class AggConstructionContentionBenchmark {
         private final MultiBucketConsumer multiBucketConsumer;
 
         DummyAggregationContext(long bytesToPreallocate) {
-            CircuitBreakerService breakerService;
+            CircuitBreakerService dummyBreakerService;
             if (preallocateBreaker) {
-                breakerService = preallocated = new PreallocatedCircuitBreakerService(
-                    AggConstructionContentionBenchmark.this.breakerService,
+                dummyBreakerService = preallocated = new PreallocatedCircuitBreakerService(
+                    AggConstructionContentionBenchmark.this.dummyBreakerService,
                     CircuitBreaker.REQUEST,
                     bytesToPreallocate,
                     "aggregations"
                 );
             } else {
-                breakerService = AggConstructionContentionBenchmark.this.breakerService;
+                dummyBreakerService = AggConstructionContentionBenchmark.this.dummyBreakerService;
                 preallocated = null;
             }
-            breaker = breakerService.getBreaker(CircuitBreaker.REQUEST);
+            breaker = dummyBreakerService.getBreaker(CircuitBreaker.REQUEST);
             multiBucketConsumer = new MultiBucketConsumer(Integer.MAX_VALUE, breaker);
         }
 
@@ -329,9 +329,9 @@ public class AggConstructionContentionBenchmark {
 
         @Override
         public void close() {
-            List<Releasable> releaseMe = new ArrayList<>(this.releaseMe);
-            releaseMe.add(preallocated);
-            Releasables.close(releaseMe);
+            List<Releasable> closeReleaseMe = new ArrayList<>(this.releaseMe);
+            closeReleaseMe.add(preallocated);
+            Releasables.close(closeReleaseMe);
         }
     }
 }
