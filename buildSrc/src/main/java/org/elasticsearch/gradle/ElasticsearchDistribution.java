@@ -141,8 +141,8 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
     }
 
     public boolean isDocker() {
-        final Type type = this.type.get();
-        return type == Type.DOCKER || type == Type.DOCKER_UBI;
+        final Type actualType = this.type.get();
+        return actualType == Type.DOCKER || actualType == Type.DOCKER_UBI;
     }
 
     public void setBundledJdk(Boolean bundledJdk) {
