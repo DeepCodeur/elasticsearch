@@ -30,6 +30,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import java.util.concurrent.atomic.AtomicReferenceArray;
 /**
  * BlendedTermQuery can be used to unify term statistics across
  * one or more fields in the index. A common problem with structured
@@ -283,7 +284,7 @@ public abstract class BlendedTermQuery extends Query {
         }
     }
 
-    private volatile TermAndBoost[] equalTermsAndBoosts = null;
+    private AtomicReferenceArray equalTermsAndBoosts = null;
 
     private TermAndBoost[] equalsTermsAndBoosts() {
         if (equalTermsAndBoosts != null) {
