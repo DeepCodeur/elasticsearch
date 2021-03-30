@@ -10,12 +10,13 @@ package org.elasticsearch.nio;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.function.Supplier;
 
 final class RoundRobinSupplier<S> implements Supplier<S> {
 
     private final AtomicBoolean selectorsSet = new AtomicBoolean(false);
-    private volatile S[] selectors;
+    private AtomicReferenceArray S[] selectors;
     private AtomicInteger counter = new AtomicInteger(0);
 
     RoundRobinSupplier() {
