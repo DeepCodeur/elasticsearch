@@ -16,7 +16,7 @@ import java.util.function.Supplier;
 final class RoundRobinSupplier<S> implements Supplier<S> {
 
     private final AtomicBoolean selectorsSet = new AtomicBoolean(false);
-    private AtomicReferenceArray S[] selectors;
+    private AtomicReferenceArray S selectors;
     private AtomicInteger counter = new AtomicInteger(0);
 
     RoundRobinSupplier() {
