@@ -37,8 +37,9 @@ import java.util.IdentityHashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
-
 public class IndicesQueryCache implements QueryCache, Closeable {
 
     private static final Logger logger = LogManager.getLogger(IndicesQueryCache.class);
@@ -56,7 +57,7 @@ public class IndicesQueryCache implements QueryCache, Closeable {
     private final LRUQueryCache cache;
     private final ShardCoreKeyMap shardKeyMap = new ShardCoreKeyMap();
     private final Map<ShardId, Stats> shardStats = new ConcurrentHashMap<>();
-    private volatile long sharedRamBytesUsed;
+    private AtomicLong sharedRamBytesUsed;
 
     // This is a hack for the fact that the close listener for the
     // ShardCoreKeyMap will be called before onDocIdSetEviction
@@ -194,11 +195,11 @@ public class IndicesQueryCache implements QueryCache, Closeable {
     private static class Stats implements Cloneable {
 
         final ShardId shardId;
-        volatile long ramBytesUsed;
-        volatile long hitCount;
-        volatile long missCount;
-        volatile long cacheCount;
-        volatile long cacheSize;
+        AtomicLong ramBytesUsed;
+        AtomicLong hitCount;
+        AtomicLong missCount;
+        AtomicLong cacheCount;
+        AtomicLong cacheSize;
 
         Stats(ShardId shardId) {
             this.shardId = shardId;
@@ -216,7 +217,7 @@ public class IndicesQueryCache implements QueryCache, Closeable {
     }
 
     private static class StatsAndCount {
-        volatile int count;
+        AtomicInteger count;
         final Stats stats;
 
         StatsAndCount(Stats stats) {
@@ -285,19 +286,19 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         }
 
         @Override
-        protected void onQueryCache(Query filter, long ramBytesUsed) {
+        protected synchronized void onQueryCache(Query filter, long ramBytesUsed) {
             super.onQueryCache(filter, ramBytesUsed);
             sharedRamBytesUsed += ramBytesUsed;
         }
 
         @Override
-        protected void onQueryEviction(Query filter, long ramBytesUsed) {
+        protected synchronized void onQueryEviction(Query filter, long ramBytesUsed) {
             super.onQueryEviction(filter, ramBytesUsed);
             sharedRamBytesUsed -= ramBytesUsed;
         }
 
         @Override
-        protected void onDocIdSetCache(Object readerCoreKey, long ramBytesUsed) {
+        protected synchronized void onDocIdSetCache(Object readerCoreKey, long ramBytesUsed) {
             super.onDocIdSetCache(readerCoreKey, ramBytesUsed);
             final Stats shardStats = getOrCreateStats(readerCoreKey);
             shardStats.cacheSize += 1;
@@ -313,7 +314,7 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         }
 
         @Override
-        protected void onDocIdSetEviction(Object readerCoreKey, int numEntries, long sumRamBytesUsed) {
+        protected synchronized void onDocIdSetEviction(Object readerCoreKey, int numEntries, long sumRamBytesUsed) {
             super.onDocIdSetEviction(readerCoreKey, numEntries, sumRamBytesUsed);
             // onDocIdSetEviction might sometimes be called with a number
             // of entries equal to zero if the cache for the given segment
