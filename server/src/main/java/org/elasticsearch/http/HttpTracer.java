@@ -19,6 +19,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
+import java.util.concurrent.atomic.AtomicReferenceArray;
 
 import java.util.List;
 
@@ -29,8 +30,8 @@ class HttpTracer {
 
     private final Logger logger = LogManager.getLogger(HttpTracer.class);
 
-    private volatile String[] tracerLogInclude;
-    private volatile String[] tracerLogExclude;
+    private AtomicReferenceArray tracerLogInclude;
+    private AtomicReferenceArray tracerLogExclude;
 
     HttpTracer(Settings settings, ClusterSettings clusterSettings) {
 
