@@ -734,7 +734,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         final List<BulkItemResponse> itemResponses;
         final AtomicIntegerArray originalSlots;
 
-        volatile int currentSlot = -1;
+        AtomicInteger currentSlot = -1;
 
         BulkRequestModifier(BulkRequest bulkRequest) {
             this.bulkRequest = bulkRequest;
@@ -745,7 +745,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
         @Override
         public DocWriteRequest<?> next() {
-            return bulkRequest.requests().get(++currentSlot);
+            return bulkRequest.requests().currentSlot.incrementAndGet();
         }
 
         @Override

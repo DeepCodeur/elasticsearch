@@ -51,6 +51,7 @@ import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
+import java.util.concurrent.atomic.AtomicReferenceArray;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -183,7 +184,7 @@ public class TransportFieldCapabilitiesIndexAction
         private final ActionListener<FieldCapabilitiesIndexResponse> listener;
         private final GroupShardsIterator<ShardIterator> shardsIt;
 
-        private volatile int shardIndex = 0;
+        private AtomicInteger shardIndex = 0;
 
         private AsyncShardsAction(FieldCapabilitiesIndexRequest request, ActionListener<FieldCapabilitiesIndexResponse> listener) {
             this.listener = listener;
@@ -232,7 +233,7 @@ public class TransportFieldCapabilitiesIndexAction
         }
 
         private void moveToNextShard() {
-            ++ shardIndex;
+            shardIndex.incrementAndGet();
         }
 
         private void tryNext(@Nullable final Exception lastFailure, boolean canMatchShard) {
