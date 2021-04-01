@@ -10,49 +10,50 @@ package org.elasticsearch.xpack.ml.dataframe.stats;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.common.DataCounts;
 
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class DataCountsTracker {
 
     private final String jobId;
-    private volatile long trainingDocsCount;
-    private volatile long testDocsCount;
-    private volatile long skippedDocsCount;
+    private AtomicLong trainingDocsCount;
+    private AtomicLong testDocsCount;
+    private AtomicLong skippedDocsCount;
 
     public DataCountsTracker(DataCounts dataCounts) {
         this.jobId = Objects.requireNonNull(dataCounts.getJobId());
-        this.trainingDocsCount = dataCounts.getTrainingDocsCount();
-        this.testDocsCount = dataCounts.getTestDocsCount();
-        this.skippedDocsCount = dataCounts.getSkippedDocsCount();
+        this.trainingDocsCount.set(dataCounts.getTrainingDocsCount());
+        this.testDocsCount.set(dataCounts.getTestDocsCount());
+        this.skippedDocsCount.set(dataCounts.getSkippedDocsCount());
     }
 
-    public void incrementTrainingDocsCount() {
-        trainingDocsCount++;
+    public synchronized void incrementTrainingDocsCount() {
+        trainingDocsCount.set(trainingDocsCount.get() + 1);
     }
 
-    public void incrementTestDocsCount() {
-        testDocsCount++;
+    public synchronized void incrementTestDocsCount() {
+        testDocsCount.set(testDocsCount.get() + 1);
     }
 
-    public void incrementSkippedDocsCount() {
-        skippedDocsCount++;
+    public synchronized void incrementSkippedDocsCount() {
+        skippedDocsCount.set(skippedDocsCount.get() + 1);
     }
 
     public DataCounts report() {
         return new DataCounts(
             jobId,
-            trainingDocsCount,
-            testDocsCount,
-            skippedDocsCount
+            trainingDocsCount.get(),
+            testDocsCount.get(),
+            skippedDocsCount.get()
         );
     }
 
     public void reset() {
-        trainingDocsCount = 0;
-        testDocsCount = 0;
-        skippedDocsCount = 0;
+        trainingDocsCount.set(0);
+        testDocsCount.set(0);
+        skippedDocsCount.set(0);
     }
 
     public void setTestDocsCount(long testDocsCount) {
-        this.testDocsCount = testDocsCount;
+        this.testDocsCount.set(testDocsCount);
     }
 }

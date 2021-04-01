@@ -10,6 +10,10 @@ import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 
+import java.util.concurrent.atomic.AtomicInteger;
+
+import java.util.concurrent.atomic.AtomicBoolean;
+
 import java.util.Objects;
 
 /**
@@ -31,10 +35,10 @@ class ProblemTracker {
     private final AnomalyDetectionAuditor auditor;
     private final String jobId;
 
-    private volatile boolean hasProblems;
-    private volatile boolean hadProblems;
+    private AtomicBoolean hasProblems;
+    private AtomicBoolean hadProblems;
     private volatile String previousProblem;
-    private volatile int emptyDataCount;
+    private AtomicInteger emptyDataCount;
 
     ProblemTracker(AnomalyDetectionAuditor auditor, String jobId) {
         this.auditor = Objects.requireNonNull(auditor);
@@ -64,8 +68,8 @@ class ProblemTracker {
      *
      * @param problemMessage the problem message
      */
-    private void reportProblem(String template, String problemMessage) {
-        hasProblems = true;
+    private synchronized void reportProblem(String template, String problemMessage) {
+        hasProblems.set(true);
         if (Objects.equals(previousProblem, problemMessage) == false) {
             previousProblem = problemMessage;
             auditor.error(jobId, Messages.getMessage(template, problemMessage));
@@ -76,33 +80,33 @@ class ProblemTracker {
      * Updates the tracking of empty data cycles. If the number of consecutive empty data
      * cycles reaches {@code EMPTY_DATA_WARN_COUNT}, a warning is reported.
      */
-    public int reportEmptyDataCount() {
-        if (++emptyDataCount == EMPTY_DATA_WARN_COUNT) {
+    public synchronized int reportEmptyDataCount() {
+        if ((1 + emptyDataCount.get() == EMPTY_DATA_WARN_COUNT) {
             auditor.warning(jobId, Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_NO_DATA));
         }
-        return emptyDataCount;
+        return emptyDataCount.get();
     }
 
     public void reportNonEmptyDataCount() {
-        if (emptyDataCount >= EMPTY_DATA_WARN_COUNT) {
+        if (emptyDataCount.get() >= EMPTY_DATA_WARN_COUNT) {
             auditor.info(jobId, Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_DATA_SEEN_AGAIN));
         }
-        emptyDataCount = 0;
+        emptyDataCount.set(0);
     }
 
     public boolean hasProblems() {
-        return hasProblems;
+        return hasProblems.get();
     }
 
     /**
      * Issues a recovery message if appropriate and prepares for next report
      */
-    public void finishReport() {
+    public synchronized void finishReport() {
         if (hasProblems == false && hadProblems) {
             auditor.info(jobId, Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_RECOVERED));
         }
 
-        hadProblems = hasProblems;
-        hasProblems = false;
+        hadProblems.set(hasProblems.get());
+        hasProblems.set(false);
     }
 }
