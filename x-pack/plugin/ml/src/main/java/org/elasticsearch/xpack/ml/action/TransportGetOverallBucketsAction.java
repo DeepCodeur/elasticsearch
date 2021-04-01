@@ -50,6 +50,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -206,7 +207,7 @@ public class TransportGetOverallBucketsAction extends HandledTransportAction<Get
         private final boolean excludeInterim;
         private final long chunkMillis;
         private final long endTime;
-        private volatile long curTime;
+        private AtomicLong curTime;
         private final AggregationBuilder aggs;
         private final OverallBucketsProvider overallBucketsProvider;
         private final OverallBucketsProcessor overallBucketsProcessor;
@@ -225,7 +226,7 @@ public class TransportGetOverallBucketsAction extends HandledTransportAction<Get
             this.overallBucketsProcessor = overallBucketsProcessor;
         }
 
-        void searchAndComputeOverallBuckets(ActionListener<List<OverallBucket>> listener) {
+        void synchronized searchAndComputeOverallBuckets(ActionListener<List<OverallBucket>> listener) {
             if (curTime >= endTime) {
                 listener.onResponse(overallBucketsProcessor.finish());
                 return;
