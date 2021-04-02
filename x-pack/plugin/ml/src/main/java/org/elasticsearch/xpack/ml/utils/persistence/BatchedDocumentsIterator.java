@@ -24,6 +24,8 @@ import java.util.Collections;
 import java.util.Deque;
 import java.util.NoSuchElementException;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * An iterator useful to fetch a big number of documents of type T
@@ -37,17 +39,17 @@ public abstract class BatchedDocumentsIterator<T> implements BatchedIterator<T> 
 
     private final OriginSettingClient client;
     private final String index;
-    private volatile long count;
-    private volatile long totalHits;
+    private AtomicLong count;
+    private AtomicLong totalHits;
     private volatile String scrollId;
-    private volatile boolean isScrollInitialised;
+    private AtomicBoolean isScrollInitialised;
 
-    protected BatchedDocumentsIterator(OriginSettingClient client, String index) {
+    protected synchronized BatchedDocumentsIterator(OriginSettingClient client, String index) {
         this.client = Objects.requireNonNull(client);
         this.index = Objects.requireNonNull(index);
-        this.totalHits = 0;
-        this.count = 0;
-        this.isScrollInitialised = false;
+        this.totalHits.set(0);
+        this.count.set(0);
+        this.isScrollInitialised.set(false);
     }
 
     /**
@@ -58,8 +60,8 @@ public abstract class BatchedDocumentsIterator<T> implements BatchedIterator<T> 
      * @return {@code true} if the iteration has more elements
      */
     @Override
-    public boolean hasNext() {
-        return isScrollInitialised == false || count != totalHits;
+    public synchronized boolean hasNext() {
+        return isScrollInitialised.get() == false || count.get() != totalHits.get();
     }
 
     /**
@@ -89,10 +91,10 @@ public abstract class BatchedDocumentsIterator<T> implements BatchedIterator<T> 
         return mapHits(searchResponse);
     }
 
-    private SearchResponse initScroll() {
+    private synchronized SearchResponse initScroll() {
         LOGGER.trace("ES API CALL: search index {}", index);
 
-        isScrollInitialised = true;
+        isScrollInitialised.set(true);
 
         SearchRequest searchRequest = new SearchRequest(index);
         searchRequest.indicesOptions(MlIndicesUtils.addIgnoreUnavailable(SearchRequest.DEFAULT_INDICES_OPTIONS));
@@ -105,7 +107,7 @@ public abstract class BatchedDocumentsIterator<T> implements BatchedIterator<T> 
                 .sort(SortBuilders.fieldSort(ElasticsearchMappings.ES_DOC)));
 
         SearchResponse searchResponse = client.search(searchRequest).actionGet();
-        totalHits = searchResponse.getHits().getTotalHits().value;
+        totalHits.set(searchResponse.getHits().getTotalHits().value);
         scrollId = searchResponse.getScrollId();
         return searchResponse;
     }
@@ -120,7 +122,7 @@ public abstract class BatchedDocumentsIterator<T> implements BatchedIterator<T> 
                 results.add(mapped);
             }
         }
-        count += hits.length;
+        count.set(count.get() + hits.length);
 
         if (hasNext() == false && scrollId != null) {
             client.prepareClearScroll().setScrollIds(Collections.singletonList(scrollId)).get();
