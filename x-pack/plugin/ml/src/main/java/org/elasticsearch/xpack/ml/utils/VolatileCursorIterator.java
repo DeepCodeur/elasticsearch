@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.utils;
 
 import java.util.Iterator;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * An iterator whose cursor is volatile. The intended usage
@@ -20,20 +21,20 @@ import java.util.List;
 public class VolatileCursorIterator<T> implements Iterator<T> {
 
     private final List<T> items;
-    private volatile int cursor;
+    private AtomicInteger cursor;
 
-    public VolatileCursorIterator(List<T> items) {
+    public synchronized VolatileCursorIterator(List<T> items) {
         this.items = items;
-        this.cursor = 0;
+        this.cursor.set(0);
     }
 
     @Override
     public boolean hasNext() {
-        return cursor < items.size();
+        return cursor.get() < items.size();
     }
 
     @Override
-    public T next() {
-        return items.get(cursor++);
+    public synchronized T next() {
+        return items.get(cursor.incrementAndGet());
     }
 }
