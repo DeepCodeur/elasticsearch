@@ -49,6 +49,9 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicBoolean;
+
 import static org.elasticsearch.ExceptionsHelper.status;
 import static org.elasticsearch.xpack.ml.MachineLearning.UTILITY_THREAD_POOL_NAME;
 
@@ -87,8 +90,8 @@ public class ResultsPersisterService {
     private final ThreadPool threadPool;
     private final OriginSettingClient client;
     private final Map<Object, RetryableAction<?>> onGoingRetryableActions = ConcurrentCollections.newConcurrentMap();
-    private volatile int maxFailureRetries;
-    private volatile boolean isShutdown = false;
+    private AtomicInteger maxFailureRetries;
+    private AtomicBoolean isShutdown = false;
 
     // Visible for testing
     public ResultsPersisterService(ThreadPool threadPool,
@@ -97,7 +100,7 @@ public class ResultsPersisterService {
                                    Settings settings) {
         this.threadPool = threadPool;
         this.client = client;
-        this.maxFailureRetries = PERSIST_RESULTS_MAX_RETRIES.get(settings);
+        this.maxFailureRetries.set(PERSIST_RESULTS_MAX_RETRIES.get(settings));
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(PERSIST_RESULTS_MAX_RETRIES, this::setMaxFailureRetries);
         clusterService.addLifecycleListener(new LifecycleListener() {
@@ -109,7 +112,7 @@ public class ResultsPersisterService {
     }
 
     void shutdown() {
-        isShutdown = true;
+        isShutdown.get() = true;
         if (onGoingRetryableActions.isEmpty()) {
             return;
         }
@@ -121,7 +124,7 @@ public class ResultsPersisterService {
     }
 
     void setMaxFailureRetries(int value) {
-        this.maxFailureRetries = value;
+        this.maxFailureRetries.set(value);
     }
 
     public BulkResponse indexWithRetry(String jobId,
@@ -190,7 +193,7 @@ public class ResultsPersisterService {
         );
         onGoingRetryableActions.put(key, bulkRetryableAction);
         bulkRetryableAction.run();
-        if (isShutdown) {
+        if (isShutdown.get()) {
             bulkRetryableAction.cancel(new CancellableThreads.ExecutionCancelledException("Node is shutting down"));
         }
         return getResponse.actionGet();
@@ -215,14 +218,14 @@ public class ResultsPersisterService {
             removeListener);
         onGoingRetryableActions.put(key, mlRetryableAction);
         mlRetryableAction.run();
-        if (isShutdown) {
+        if (isShutdown.get()) {
             mlRetryableAction.cancel(new CancellableThreads.ExecutionCancelledException("Node is shutting down"));
         }
         return getResponse.actionGet();
     }
 
     private Supplier<Boolean> shouldRetryWrapper(Supplier<Boolean> shouldRetry) {
-        return () -> (isShutdown == false) && shouldRetry.get();
+        return () -> (isShutdown.get() == false) && shouldRetry.get();
     }
 
     static class RecoverableException extends Exception { }
@@ -416,7 +419,7 @@ public class ResultsPersisterService {
             }
 
             // If the configured maximum number of retries has been reached, do not retry.
-            if (currentAttempt > maxFailureRetries) {
+            if (currentAttempt > maxFailureRetries.get()) {
                 LOGGER.warn(() -> new ParameterizedMessage(
                     "[{}] failed to {} after [{}] attempts.",
                     jobId,
