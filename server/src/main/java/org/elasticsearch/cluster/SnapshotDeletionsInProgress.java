@@ -42,8 +42,11 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
 
     private SnapshotDeletionsInProgress(List<Entry> entries) {
         this.entries = entries;
-        assert entries.size() == entries.stream().map(Entry::uuid).distinct().count() : "Found duplicate UUIDs in entries " + entries;
-        assert assertNoConcurrentDeletionsForSameRepository(entries);
+        int entriesSize = entries.size();
+        int intendedSize = entries.stream().map(Entry::uuid).distinct().count();
+        assert entriesSize == intendedSize : "Found duplicate UUIDs in entries " + entries;
+        boolean nonConcurrentDeletions = assertNoConcurrentDeletionsForSameRepository(entries)
+        assert nonConcurrentDeletions;
     }
 
     public static SnapshotDeletionsInProgress of(List<SnapshotDeletionsInProgress.Entry> entries) {

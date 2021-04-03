@@ -201,7 +201,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     private void onLeaderFailure(Exception e) {
         synchronized (mutex) {
             if (mode != Mode.CANDIDATE) {
-                assert lastKnownLeader.isPresent();
+                boolean lastKnownPresent = lastKnownLeader.isPresent();
+                assert lastKnownPresent;
                 logger.info(new ParameterizedMessage("master node [{}] failed, restarting discovery", lastKnownLeader.get()), e);
             }
             becomeCandidate("onLeaderFailure");
@@ -277,8 +278,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     }
 
     PublishWithJoinResponse handlePublishRequest(PublishRequest publishRequest) {
-        assert publishRequest.getAcceptedState().nodes().getLocalNode().equals(getLocalNode()) :
-            publishRequest.getAcceptedState().nodes().getLocalNode() + " != " + getLocalNode();
+        boolean sameNodes = publishRequest.getAcceptedState().nodes().getLocalNode().equals(getLocalNode());
+        assert sameNodes : publishRequest.getAcceptedState().nodes().getLocalNode() + " != " + getLocalNode();
 
         synchronized (mutex) {
             final DiscoveryNode sourceNode = publishRequest.getAcceptedState().nodes().getMasterNode();
@@ -384,21 +385,26 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     }
 
     private void abdicateTo(DiscoveryNode newMaster) {
-        assert Thread.holdsLock(mutex);
-        assert mode == Mode.LEADER : "expected to be leader on abdication but was " + mode;
-        assert newMaster.isMasterNode() : "should only abdicate to master-eligible node but was " + newMaster;
+        boolean holdingLock = Thread.holdsLock(mutex);
+        assert holdingLock;
+        boolean sameMode = mode == Mode.LEADER;
+        assert  sameMode : "expected to be leader on abdication but was " + mode;
+        boolean isMaster = newMaster.isMasterNode();
+        assert  isMaster : "should only abdicate to master-eligible node but was " + newMaster;
         final StartJoinRequest startJoinRequest = new StartJoinRequest(newMaster, Math.max(getCurrentTerm(), maxTermSeen) + 1);
         logger.info("abdicating to {} with term {}", newMaster, startJoinRequest.getTerm());
         getLastAcceptedState().nodes().mastersFirstStream().forEach(node -> joinHelper.sendStartJoinRequest(startJoinRequest, node));
         // handling of start join messages on the local node will be dispatched to the generic thread-pool
-        assert mode == Mode.LEADER : "should still be leader after sending abdication messages " + mode;
+        sameMode = mode == Mode.LEADER;
+        assert sameMode : "should still be leader after sending abdication messages " + mode;
         // explicitly move node to candidate state so that the next cluster state update task yields an onNoLongerMaster event
         becomeCandidate("after abdicating to " + newMaster);
     }
 
     private static boolean localNodeMayWinElection(ClusterState lastAcceptedState) {
         final DiscoveryNode localNode = lastAcceptedState.nodes().getLocalNode();
-        assert localNode != null;
+        boolean localNodeNotNull = localNode != null;
+        assert localNodeNotNull ;
         return nodeMayWinElection(lastAcceptedState, localNode);
     }
 
@@ -410,7 +416,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     }
 
     private Optional<Join> ensureTermAtLeast(DiscoveryNode sourceNode, long targetTerm) {
-        assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
+        boolean holdingLock = Thread.holdsLock(mutex);
+        assert holdingLock : "Coordinator mutex not held";
         if (getCurrentTerm() < targetTerm) {
             return Optional.of(joinLeaderInTerm(new StartJoinRequest(sourceNode, targetTerm)));
         }
@@ -435,8 +442,10 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
 
     private void handleJoinRequest(JoinRequest joinRequest, JoinHelper.JoinCallback joinCallback) {
-        assert Thread.holdsLock(mutex) == false;
-        assert getLocalNode().isMasterNode() : getLocalNode() + " received a join but is not master-eligible";
+        boolean notHoldingLock = Thread.holdsLock(mutex) == false;
+        assert notHoldingLock;
+        boolean isMaster = getLocalNode().isMasterNode();
+        assert isMaster : getLocalNode() + " received a join but is not master-eligible";
         logger.trace("handleJoinRequest: as {}, handling {}", mode, joinRequest);
 
         if (singleNodeDiscovery && joinRequest.getSourceNode().equals(getLocalNode()) == false) {
@@ -504,7 +513,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     }
 
     void becomeCandidate(String method) {
-        assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
+        boolean holdingLock = Thread.holdsLock(mutex);
+        assert holdingLock : "Coordinator mutex not held";
         logger.debug("{}: coordinator becoming CANDIDATE in term {} (was {}, lastKnownLeader was [{}])",
             method, getCurrentTerm(), mode, lastKnownLeader);
 
@@ -540,8 +550,11 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     }
 
     void becomeLeader(String method) {
-        assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
-        assert mode == Mode.CANDIDATE : "expected candidate but was " + mode;
+        boolean holdingLock = Thread.holdsLock(mutex);
+        assert holdingLock : "Coordinator mutex not held";
+        boolean isCandidate = mode == Mode.CANDIDATE;
+        assert isCandidate : "expected candidate but was " + mode;
+        boolean isMaster = getLocalNode().isMasterNode();
         assert getLocalNode().isMasterNode() : getLocalNode() + " became a leader but is not master-eligible";
 
         logger.debug("{}: coordinator becoming LEADER in term {} (was {}, lastKnownLeader was [{}])",
@@ -562,9 +575,12 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     }
 
     void becomeFollower(String method, DiscoveryNode leaderNode) {
-        assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
-        assert leaderNode.isMasterNode() : leaderNode + " became a leader but is not master-eligible";
-        assert mode != Mode.LEADER : "do not switch to follower from leader (should be candidate first)";
+        boolean holdingLock = Thread.holdsLock(mutex);
+        assert holdingLock : "Coordinator mutex not held";
+        boolean isMaster = leaderNode.isMasterNode();
+        assert isMaster : leaderNode + " became a leader but is not master-eligible";
+        boolean isNotLeader = mode != Mode.LEADER;
+        assert isNotLeader : "do not switch to follower from leader (should be candidate first)";
 
         if (mode == Mode.FOLLOWER && Optional.of(leaderNode).equals(lastKnownLeader)) {
             logger.trace("{}: coordinator remaining FOLLOWER of [{}] in term {}",
